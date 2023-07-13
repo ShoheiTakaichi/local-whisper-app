@@ -6,27 +6,39 @@ from kivy.properties import StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.uix.filechooser import FileChooserIconView
 from kivy.core.clipboard import Clipboard
+from kivy.core.window import Window
+from kivy.uix.scrollview import ScrollView
+# import japanize_kivy
 
-import japanize_kivy
-
+# print(japanize_kivy.__file__)
 
 def transscribe(audio_file):
-    model = whisper.load_model("small")
+    model = whisper.load_model("medium")
     result = model.transcribe(audio_file)
     return result["text"]
 
-
 class TranscriptionBox(BoxLayout):
     result_text = StringProperty("")
+    file_path_text = StringProperty("ファイルをここにドラッグ＆ドロップしてください。")
+    file_path = None
 
     def __init__(self, **kwargs):
         super(TranscriptionBox, self).__init__(**kwargs)
+        Window.bind(on_dropfile=self._on_file_drop)
 
-    def transcribe_file(self, file_path):
-        if file_path.endswith(".mp3"):
-            self.result_text = transscribe(file_path)
+    def _on_file_drop(self, window, file_path):
+        self.file_path = file_path.decode('utf-8')
+        self.file_path_text = self.file_path
+
+    def transcribe_file(self):
+        if self.file_path is None:
+            self.result_text = "ファイルが選択されていません。"
+        elif self.file_path.endswith(".mp3"):
+            try:
+                self.result_text = transscribe(self.file_path)
+            except Exception:
+                self.result_text = "文字起こしに失敗しました。ファイルを確認してください。"
         else:
             self.result_text = "選択されたファイルはMP3ファイルではありません。"
 
@@ -37,17 +49,18 @@ class TranscriptionBox(BoxLayout):
 Builder.load_string("""
 <TranscriptionBox>:
     orientation: "vertical"
-    BoxLayout:
-        size_hint_y: None
-        height: "48dp"
-        FileChooserIconView:
-            id: filechooser
-            on_selection: root.transcribe_file(self.selection and self.selection[0] or '')
+    Label:
+        text: root.file_path_text
     Button:
         text: "文字起こしをする"
-        on_press: root.transcribe_file(filechooser.selection and filechooser.selection[0] or '')
-    Label:
-        text: root.result_text
+        on_press: root.transcribe_file()
+    ScrollView:
+        size_hint_y: 0.8
+        Label:
+            text: root.result_text
+            text_size: self.width, None
+            size_hint_y: None
+            height: self.texture_size[1]
     Button:
         text: "結果をクリップボードに保存"
         on_press: root.copy_to_clipboard()
